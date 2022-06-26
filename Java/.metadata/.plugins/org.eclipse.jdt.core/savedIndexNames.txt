@@ -1,0 +1,4 @@
+INDEX VERSION 1.131+C:\Users\JUNGBO04\Desktop\졸작 인터페이스\Java\.metadata\.plugins\org.eclipse.jdt.core
+3883950653.index
+3308926264.index
+449384428.index

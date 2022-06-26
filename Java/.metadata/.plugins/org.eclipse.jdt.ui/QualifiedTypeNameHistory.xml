@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<qualifiedTypeNameHistroy>
+    <fullyQualifiedTypeName name="GUI"/>
+    <fullyQualifiedTypeName name="java.io.InputStream"/>
+    <fullyQualifiedTypeName name="javax.swing.JTextArea"/>
+    <fullyQualifiedTypeName name="gnu.io.SerialPortEventListener"/>
+    <fullyQualifiedTypeName name="gnu.io.CommPortIdentifier"/>
+    <fullyQualifiedTypeName name="gnu.io.CommPort"/>
+    <fullyQualifiedTypeName name="gnu.io.SerialPort"/>
+</qualifiedTypeNameHistroy>

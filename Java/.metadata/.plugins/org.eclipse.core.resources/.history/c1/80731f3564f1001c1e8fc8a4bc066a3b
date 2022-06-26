@@ -1,0 +1,319 @@
+import java.awt.Color;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+
+import gnu.io.CommPort;
+import gnu.io.CommPortIdentifier;
+import gnu.io.SerialPort;
+import gnu.io.SerialPortEvent;
+import gnu.io.SerialPortEventListener;
+
+public class GUI extends JFrame implements ActionListener, SerialPortEventListener {
+
+//*******************************************************
+//members*****s******************************************
+//*******************************************************
+	JButton jButton_connect = null;
+	JButton jButton_clear = null;
+	JButton jButton_send = null;
+	JTextArea jTextArea = null;
+	JTextField jTextField = null;
+	Led led_connected = null;
+	boolean connected = false;
+	CommPort commPort = null;
+	SerialPort serialPort = null;
+	InputStream inputStream = null;
+	OutputStream outputStream = null;
+
+//*******************************************************
+//constructors******************************************
+//*******************************************************
+	public GUI() {
+		super();
+		// setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+		addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent we) {
+				if (connected) {
+					closeConnection();
+				}
+				;
+				dispose();
+				System.exit(0);
+			}
+		});
+		jButton_connect = new JButton("Connect | STOP");
+		jButton_connect.addActionListener(this);
+
+		jButton_clear = new JButton("Clear");
+		jButton_clear.addActionListener(this);
+
+		jTextArea = new JTextArea(20, 32);
+		jTextArea.setEditable(false);
+
+		jTextField = new JTextField(24);
+
+		jButton_send = new JButton("SEND");
+		jButton_send.addActionListener(this);
+
+		led_connected = new Led(Color.GREEN, false);
+
+		Container cont = getContentPane();
+		cont.setLayout(new BoxLayout(cont, BoxLayout.Y_AXIS));
+		cont.add(new JScrollPane(jTextArea, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+				JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS));
+		cont.add(jButton_clear);
+		cont.add(Box.createVerticalStrut(5));
+
+		Box hBox = Box.createHorizontalBox();
+		hBox.add(jButton_connect);
+		hBox.add(Box.createHorizontalStrut(5));
+		hBox.add(led_connected);
+
+		cont.add(hBox);
+
+		hBox = Box.createHorizontalBox();
+		hBox.add(new JScrollPane(jTextField));
+		hBox.add(jButton_send);
+
+		cont.add(hBox);
+
+		pack();
+		setVisible(true);
+	}
+
+//******************************************************
+//implemented methods (from interfaces)*****************
+//******************************************************
+
+	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == jButton_clear) {
+			jTextArea.setText("");
+		}
+		;
+		if (e.getSource() == jButton_send) {
+			if (connected == false) {
+				JOptionPane.showMessageDialog(this, "Make a connection first!");
+			}
+			;
+			if (jTextField.getText().length() > 0) {
+				new SerialWriter(jTextField.getText()).start();
+				jTextField.setText("");
+			}
+			;
+		}
+		;
+		if (e.getSource() == jButton_connect) {
+			if (connected == false) {
+				new ConnectionMaker().start();
+			} else {
+				closeConnection();
+			}
+			;
+		}
+		;
+	}
+
+	public void serialEvent(SerialPortEvent arg0) {
+		byte[] buffer = new byte[1024];
+		int data;
+		try {
+			int len = 0;
+			while ((data = inputStream.read()) > -1) {
+				if (data == '\n')
+					break;
+				buffer[len++] = (byte) data;
+			}
+			String string = new String(buffer, 0, len);
+			jTextArea.setText(jTextArea.getText() + '\n' + string);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+//*******************************************************
+//our own methods ***************************************
+//******************************************************
+
+	void closeConnection() {
+		try {
+			inputStream.close();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		try {
+			outputStream.close();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		try {
+			commPort.close();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		connected = false;
+		led_connected.setOn(false);
+	}
+
+	void connect() throws Exception {
+		String portName = "COM4";
+		CommPortIdentifier portIdentifier = CommPortIdentifier.getPortIdentifier(portName);
+		if (portIdentifier.isCurrentlyOwned()) {
+			System.out.println("Error: Port is currently in use");
+		} else {
+			commPort = portIdentifier.open(this.getClass().getName(), 2000);
+			if (commPort instanceof SerialPort) {
+				serialPort = (SerialPort) commPort;
+				serialPort.setSerialPortParams(9600, SerialPort.DATABITS_8, SerialPort.STOPBITS_1,
+						SerialPort.PARITY_NONE);
+				inputStream = serialPort.getInputStream();
+				outputStream = serialPort.getOutputStream();
+				serialPort.addEventListener(this);
+				// serialPort.notifyOnDataAvailable(true);
+			} else {
+				System.out.println("Error: Only serial ports are handled by this example.");
+			}
+			;
+		}
+		;
+		// wait some time
+		try {
+			Thread.sleep(300);
+		} catch (InterruptedException ie) {
+		}
+		;
+	}
+
+//*******************************************************
+//innerclasses******************************************
+//*******************************************************
+	public class ConnectionMaker extends Thread {
+
+		public void run() {
+			// try to make a connection
+			try {
+				connect();
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+			;
+			// test the connection
+
+			try {
+				int data = -1;
+				while ((data = inputStream.read()) < 0) {
+					// outputStream.write('R');
+					try {
+						this.sleep(100);
+					} catch (InterruptedException ie) {
+					}
+					;
+					if (led_connected.getOn()) {
+						led_connected.setOn(false);
+					} else {
+						led_connected.setOn(true);
+					}
+					;
+				}
+			} catch (IOException ioe) {
+				ioe.printStackTrace();
+			}
+			;
+
+			// show status
+			serialPort.notifyOnDataAvailable(true);
+			connected = true;
+			led_connected.setOn(true);
+			// send ack
+			new SerialWriter("Ready").start();
+		}
+
+	}// end innerclass
+
+	public class SerialWriter extends Thread {
+
+		char[] charArray = null;
+
+		SerialWriter(String string) {
+			charArray = string.toCharArray();
+		}
+
+		public void run() {
+			try {
+				for (int i = 0; i < charArray.length; i++) {
+					outputStream.write(charArray[i]);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(-1);
+			}
+		}
+	}// end innerclass
+
+	class Led extends JPanel {
+
+		boolean on = true;
+		Color color_on = null;
+		Color color_off = null;
+
+		Led(Color color, boolean on_off) {
+			color_on = color;
+			color_off = color.darker().darker().darker();
+			Dimension dimension = new Dimension(17, 17);
+			setMinimumSize(dimension);
+			setPreferredSize(dimension);
+			setMaximumSize(dimension);
+			setOn(on_off);
+		}
+
+		public void setOn(boolean on_off) {
+			on = on_off;
+			repaint();
+		}
+
+		public boolean getOn() {
+			return on;
+		}
+
+		public void paintComponent(Graphics g) {
+			super.paintComponent(g);
+			Graphics2D g2D = (Graphics2D) g;
+			g2D.setColor(Color.DARK_GRAY);
+			g2D.fillOval(0, 0, getWidth(), getHeight());
+			if (on) {
+				g2D.setColor(color_on);
+			} else {
+				g2D.setColor(color_off);
+			}
+			;
+			g2D.fillOval(1, 1, getWidth() - 1, getHeight() - 1);
+		}
+	}// end innerclass
+
+//*******************************************************
+//Ha! our main  :)***************************************
+//*******************************************************
+
+	public static void main(String[] args) {
+		new GUI();
+	}
+
+}// end class
